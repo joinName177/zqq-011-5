@@ -17,10 +17,10 @@ export interface MoodRecord {
   tag: string;
   intensity: number; // 1 - 10
   note: string;
-  pressureHpa: number;
-  temperatureC: number;
-  humidityPercent: number;
-  windSpeedKmH: number;
+  pressureHpa: number; // 整数 hPa，钳制 960–1045（统一标度见 meteorology-scale.ts）
+  temperatureC: number; // 整数 °C
+  humidityPercent: number; // 整数 %，钳制 20–100
+  windSpeedKmH: number; // 整数 km/h
   windDirectionDeg: number;
   windDirectionName: string;
 }
@@ -29,8 +29,8 @@ export interface BarometricZone {
   code: string;
   name: string;
   psychologicalState: string;
-  pressureRange: string;
-  activeRatio: number; // 0 - 100%
+  pressureRange: string; // 由 PRESSURE_THRESHOLDS 生成的展示文案，与分类判定同口径
+  activeRatio: number; // 整数 %（0-100）；同一图表各气压带占比按最大余数法分配，合计恒为 100
   status: 'dominant' | 'active' | 'receding';
   description: string;
 }
@@ -60,7 +60,7 @@ export interface SynopticChartData {
   generatedDate: string;
   currentRecord: MoodRecord;
   records: MoodRecord[];
-  averagePressure: number;
+  averagePressure: number; // 全周期算术平均，统一保留 1 位小数；阈值比较与展示均使用此值
   zones: BarometricZone[];
   monsoon: MonsoonTrend;
   alerts: ExtremeWeatherAlert[];

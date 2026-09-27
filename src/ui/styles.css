@@ -224,6 +224,19 @@ body {
   color: var(--met-muted);
 }
 
+/* Synoptic summary line (same data source as the chart) */
+.met-summary-line {
+  background: var(--met-card);
+  border: 1px solid var(--met-border);
+  border-left: 3px solid var(--met-cyan);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--met-text);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
 /* Weather Map Canvas SVG */
 .synoptic-map-wrap {
   position: relative;

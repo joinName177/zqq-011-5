@@ -1,6 +1,7 @@
 import { MoodRecord } from '../core/models';
 import { MoodRepositoryPort } from '../ports/mood-repository.port';
 import { createRecordFromTag } from '../core/meteorology-engine';
+import { normalizeRecordMetrics } from '../core/meteorology-scale';
 
 const STORAGE_KEY = 'mood_meteorology_records_v1';
 
@@ -13,7 +14,8 @@ export class LocalStorageMoodAdapter implements MoodRepositoryPort {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        // 读入时按统一标度规整，历史缓存数据与新生成数据走同一精度口径
+        return parsed.map(normalizeRecordMetrics);
       }
     } catch {
       // ignore

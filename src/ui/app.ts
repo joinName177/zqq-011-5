@@ -1,5 +1,13 @@
 import { SynopticChartData, MoodRecord } from '../core/models';
 import { TAG_METAS } from '../core/meteorology-engine';
+import {
+  formatPressure,
+  isColdTemp,
+  isHighPressure,
+  isHotTemp,
+  isHumid,
+  isLowPressure
+} from '../core/meteorology-scale';
 
 export interface WeatherUIHandlers {
   onOpenLogModal: () => void;
@@ -26,6 +34,26 @@ export function renderWeatherApp(
 
   const esc = (s: string) =>
     s.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+
+  // 等压线标注与文字摘要同源于真实观测序列，保证图表与文字可互相解释
+  const pressures = chartData.records.map(r => r.pressureHpa);
+  const minPressure = Math.min(...pressures);
+  const maxPressure = Math.max(...pressures);
+  const lowOuter = minPressure + 12; // 低压外圈等压线（等压距 4 hPa × 3）
+  const highOuter = maxPressure - 8; // 高压外圈等压线（等压距 4 hPa × 2）
+
+  // 遥测卡片的判定标签与核心层共用同一套阈值谓词
+  const pressureStateLabel = isLowPressure(cur.pressureHpa)
+    ? '低压对流'
+    : isHighPressure(cur.pressureHpa)
+      ? '高压反气旋'
+      : '过渡气压槽';
+  const temperatureStateLabel = isColdTemp(cur.temperatureC)
+    ? '体感偏冷 · 注意保暖'
+    : isHotTemp(cur.temperatureC)
+      ? '体感偏热 · 注意降温'
+      : '体感适宜度良好';
+  const humidityStateLabel = isHumid(cur.humidityPercent) ? '湿润多云' : '清爽干燥';
 
   // Generate Isobar SVG paths dynamically based on records
   const isobarsSvg = `
@@ -59,8 +87,8 @@ export function renderWeatherApp(
         <ellipse cx="0" cy="0" rx="80" ry="45" fill="none" stroke="rgba(255, 0, 84, 0.6)" stroke-width="2" />
         <circle cx="0" cy="0" r="16" fill="rgba(255, 0, 84, 0.2)" stroke="#ff0054" stroke-width="2" />
         <text x="0" y="5" fill="#ff0054" font-size="13" font-weight="bold" text-anchor="middle">L</text>
-        <text x="50" y="-30" fill="#00f0ff" font-size="10">992 hPa</text>
-        <text x="100" y="-60" fill="#00f0ff" font-size="10">1004 hPa</text>
+        <text x="50" y="-30" fill="#00f0ff" font-size="10">${formatPressure(minPressure)} hPa</text>
+        <text x="100" y="-60" fill="#00f0ff" font-size="10">${formatPressure(lowOuter)} hPa</text>
       </g>
 
       <!-- Center 2: High pressure ridge -->
@@ -69,8 +97,8 @@ export function renderWeatherApp(
         <ellipse cx="0" cy="0" rx="110" ry="60" fill="none" stroke="rgba(58, 134, 255, 0.6)" stroke-width="1.5" />
         <circle cx="0" cy="0" r="16" fill="rgba(58, 134, 255, 0.2)" stroke="#3a86ff" stroke-width="2" />
         <text x="0" y="5" fill="#3a86ff" font-size="13" font-weight="bold" text-anchor="middle">H</text>
-        <text x="-90" y="-40" fill="#3a86ff" font-size="10">1020 hPa</text>
-        <text x="-40" y="-10" fill="#3a86ff" font-size="10">1028 hPa</text>
+        <text x="-90" y="-40" fill="#3a86ff" font-size="10">${formatPressure(highOuter)} hPa</text>
+        <text x="-40" y="-10" fill="#3a86ff" font-size="10">${formatPressure(maxPressure)} hPa</text>
       </g>
 
       <!-- Cold Front Line (Blue Triangles) -->
@@ -154,17 +182,17 @@ export function renderWeatherApp(
             <div class="telemetry-card">
               <div class="lbl">心境气压 (Barometer)</div>
               <div class="val" style="color:var(--met-cyan);">${cur.pressureHpa} <span style="font-size:12px;">hPa</span></div>
-              <div class="lbl">${cur.pressureHpa < 1000 ? '低压对流' : '高压反气旋'}</div>
+              <div class="lbl">${pressureStateLabel}</div>
             </div>
             <div class="telemetry-card">
               <div class="lbl">情绪温度 (Temperature)</div>
               <div class="val" style="color:var(--met-gold);">${cur.temperatureC} <span style="font-size:12px;">°C</span></div>
-              <div class="lbl">体感适宜度良好</div>
+              <div class="lbl">${temperatureStateLabel}</div>
             </div>
             <div class="telemetry-card">
               <div class="lbl">心理湿度 (Humidity)</div>
               <div class="val" style="color:var(--met-blue);">${cur.humidityPercent}%</div>
-              <div class="lbl">${cur.humidityPercent > 80 ? '湿润多云' : '清爽干燥'}</div>
+              <div class="lbl">${humidityStateLabel}</div>
             </div>
             <div class="telemetry-card">
               <div class="lbl">思绪风场 (Wind Field)</div>
@@ -172,6 +200,9 @@ export function renderWeatherApp(
               <div class="lbl">${cur.windSpeedKmH} km/h</div>
             </div>
           </div>
+
+          <!-- Summary line: 与图表同数据源的文字综观，便于图/文互相印证 -->
+          <div class="met-summary-line">${esc(chartData.metSummary)}</div>
 
           <!-- SVG Weather Map -->
           <div class="synoptic-map-wrap">
