@@ -377,6 +377,17 @@ body {
   font-weight: 700;
 }
 
+.zone-range {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--met-muted);
+  background: rgba(0, 240, 255, 0.06);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 4px;
+  padding: 3px 6px;
+  margin-bottom: 8px;
+}
+
 .zone-progress-bg {
   height: 6px;
   background: #070d18;

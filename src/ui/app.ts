@@ -1,5 +1,13 @@
 import { SynopticChartData, MoodRecord } from '../core/models';
 import { TAG_METAS } from '../core/meteorology-engine';
+import {
+  HUMIDITY_HIGH,
+  PRESSURE_HIGH_BAND,
+  PRESSURE_LOW_BAND,
+  TEMP_COLD_MAX,
+  formatPressure,
+  roundTo
+} from '../core/metrics';
 
 export interface WeatherUIHandlers {
   onOpenLogModal: () => void;
@@ -26,6 +34,26 @@ export function renderWeatherApp(
 
   const esc = (s: string) =>
     s.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t));
+
+  // 等压线标注由真实观测序列计算，与遥测卡片 / 预警 / 文案使用同一精度，
+  // 避免图上写死的 992/1020 hPa 与实际数据互相矛盾。
+  const observedPressures = chartData.records.map(r => roundTo(r.pressureHpa, 0));
+  const observedMin = observedPressures.length ? Math.min(...observedPressures) : cur.pressureHpa;
+  const observedMax = observedPressures.length ? Math.max(...observedPressures) : cur.pressureHpa;
+  const lowInner = roundTo(observedMin, 0);
+  const lowOuter = Math.min(PRESSURE_LOW_BAND, lowInner + 12);
+  const highOuter = PRESSURE_HIGH_BAND;
+  const highInner = Math.max(PRESSURE_HIGH_BAND, roundTo(observedMax, 0));
+
+  // 遥测副标签与核心阈值同源，判定口径必须与预警 / 气压带分类一致。
+  const pressureLabel =
+    cur.pressureHpa <= PRESSURE_LOW_BAND
+      ? '低压对流（副极地低气压带）'
+      : cur.pressureHpa >= PRESSURE_HIGH_BAND
+        ? '高压反气旋（高压带）'
+        : '均压过渡（赤道低压槽）';
+  const humidityLabel = cur.humidityPercent >= HUMIDITY_HIGH ? `湿润多云（≥ ${HUMIDITY_HIGH}%）` : '清爽干燥';
+  const temperatureLabel = cur.temperatureC <= TEMP_COLD_MAX ? '低温防御区间' : '体感适宜度良好';
 
   // Generate Isobar SVG paths dynamically based on records
   const isobarsSvg = `
@@ -59,8 +87,8 @@ export function renderWeatherApp(
         <ellipse cx="0" cy="0" rx="80" ry="45" fill="none" stroke="rgba(255, 0, 84, 0.6)" stroke-width="2" />
         <circle cx="0" cy="0" r="16" fill="rgba(255, 0, 84, 0.2)" stroke="#ff0054" stroke-width="2" />
         <text x="0" y="5" fill="#ff0054" font-size="13" font-weight="bold" text-anchor="middle">L</text>
-        <text x="50" y="-30" fill="#00f0ff" font-size="10">992 hPa</text>
-        <text x="100" y="-60" fill="#00f0ff" font-size="10">1004 hPa</text>
+        <text x="50" y="-30" fill="#00f0ff" font-size="10">${lowInner} hPa</text>
+        <text x="100" y="-60" fill="#00f0ff" font-size="10">${lowOuter} hPa</text>
       </g>
 
       <!-- Center 2: High pressure ridge -->
@@ -69,8 +97,8 @@ export function renderWeatherApp(
         <ellipse cx="0" cy="0" rx="110" ry="60" fill="none" stroke="rgba(58, 134, 255, 0.6)" stroke-width="1.5" />
         <circle cx="0" cy="0" r="16" fill="rgba(58, 134, 255, 0.2)" stroke="#3a86ff" stroke-width="2" />
         <text x="0" y="5" fill="#3a86ff" font-size="13" font-weight="bold" text-anchor="middle">H</text>
-        <text x="-90" y="-40" fill="#3a86ff" font-size="10">1020 hPa</text>
-        <text x="-40" y="-10" fill="#3a86ff" font-size="10">1028 hPa</text>
+        <text x="-90" y="-40" fill="#3a86ff" font-size="10">${highOuter} hPa</text>
+        <text x="-40" y="-10" fill="#3a86ff" font-size="10">${highInner} hPa</text>
       </g>
 
       <!-- Cold Front Line (Blue Triangles) -->
@@ -103,7 +131,7 @@ export function renderWeatherApp(
         <circle cx="0" cy="0" r="14" fill="#070d18" stroke="#00f0ff" stroke-width="2" />
         <text x="0" y="5" font-size="12" text-anchor="middle">${meta.icon}</text>
         <rect x="-65" y="22" width="130" height="24" rx="4" fill="rgba(14,23,38,0.85)" stroke="rgba(0,240,255,0.3)" />
-        <text x="0" y="38" fill="#e2eafc" font-size="11" font-weight="bold" text-anchor="middle">气压观测点: ${cur.pressureHpa} hPa</text>
+        <text x="0" y="38" fill="#e2eafc" font-size="11" font-weight="bold" text-anchor="middle">气压观测点: ${formatPressure(cur.pressureHpa)}</text>
       </g>
     </svg>
   `;
@@ -154,17 +182,17 @@ export function renderWeatherApp(
             <div class="telemetry-card">
               <div class="lbl">心境气压 (Barometer)</div>
               <div class="val" style="color:var(--met-cyan);">${cur.pressureHpa} <span style="font-size:12px;">hPa</span></div>
-              <div class="lbl">${cur.pressureHpa < 1000 ? '低压对流' : '高压反气旋'}</div>
+              <div class="lbl">${pressureLabel}</div>
             </div>
             <div class="telemetry-card">
               <div class="lbl">情绪温度 (Temperature)</div>
               <div class="val" style="color:var(--met-gold);">${cur.temperatureC} <span style="font-size:12px;">°C</span></div>
-              <div class="lbl">体感适宜度良好</div>
+              <div class="lbl">${temperatureLabel}</div>
             </div>
             <div class="telemetry-card">
               <div class="lbl">心理湿度 (Humidity)</div>
               <div class="val" style="color:var(--met-blue);">${cur.humidityPercent}%</div>
-              <div class="lbl">${cur.humidityPercent > 80 ? '湿润多云' : '清爽干燥'}</div>
+              <div class="lbl">${humidityLabel}</div>
             </div>
             <div class="telemetry-card">
               <div class="lbl">思绪风场 (Wind Field)</div>
@@ -196,7 +224,7 @@ export function renderWeatherApp(
                   <div class="pill-date">${r.date.slice(5)}</div>
                   <div class="pill-icon">${(TAG_METAS[r.tag] || TAG_METAS['阴转多云']).icon}</div>
                   <div class="pill-tag">${esc(r.tag)}</div>
-                  <div class="pill-pressure">${r.pressureHpa} hPa</div>
+                  <div class="pill-pressure">${formatPressure(r.pressureHpa)}</div>
                 </div>
               `
                 )
@@ -219,6 +247,7 @@ export function renderWeatherApp(
                     <span class="zone-name">${esc(z.name)}</span>
                     <span class="zone-ratio">${z.activeRatio}% 频次</span>
                   </div>
+                  <div class="zone-range">${esc(z.pressureRange)}</div>
                   <div class="zone-progress-bg">
                     <div class="zone-progress-fill" style="width: ${z.activeRatio}%"></div>
                   </div>
